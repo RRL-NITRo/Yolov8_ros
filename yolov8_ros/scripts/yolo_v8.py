@@ -33,7 +33,7 @@ class Yolo_Dect:
             self.device = 'cuda'
 
 #        self.model = YOLO(os.path.join(weight_path, 'yolov8s.pt'))
-        self.model = YOLO(os.path.join(weight_path, 'yolov8n.pt'))
+        self.model = YOLO(os.path.join(weight_path, 'yolov8m.pt'))
         self.model.fuse()
 
         self.model.conf = conf
@@ -92,7 +92,8 @@ class Yolo_Dect:
             boundingBox.Class = results[0].names[result.cls.item()]
             boundingBox.probability = result.conf.item()
             self.boundingBoxes.bounding_boxes.append(boundingBox)
-        self.position_pub.publish(self.boundingBoxes)
+            
+        self.position_pub.publish(self.boundingBoxes)#長方形の左上、右下のピクセル値、クラス名をpublish
         self.publish_image(self.frame, height, width)
 
         if self.visualize :
