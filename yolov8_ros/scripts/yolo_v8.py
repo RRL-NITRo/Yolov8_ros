@@ -27,7 +27,7 @@ class Yolo_Dect:
         self.device = 'cpu' if rospy.get_param('/use_cpu', False) else 'cuda'
 
         # Load models
-        self.model1 = YOLO(os.path.join(weight_path, 'object_detect.pt'))
+        self.model1 = YOLO(os.path.join(weight_path, 'new_object_detect.pt'))
         self.model2 = YOLO(os.path.join(weight_path, 'yolov8m.pt'))
         self.model1.fuse()
         self.model2.fuse()
@@ -68,13 +68,13 @@ class Yolo_Dect:
     def handle_results(self, results, frame):
         for result in results[0].boxes:
             boundingBox = BoundingBox()
-            boundingBox.xmin = int(result.xyxy[0][0].item())
-            boundingBox.ymin = int(result.xyxy[0][1].item())
-            boundingBox.xmax = int(result.xyxy[0][2].item())
-            boundingBox.ymax = int(result.xyxy[0][3].item())
+            boundingBox.xmin = np.int64(result.xyxy[0][0].item())
+            boundingBox.ymin = np.int64(result.xyxy[0][1].item())
+            boundingBox.xmax = np.int64(result.xyxy[0][2].item())
+            boundingBox.ymax = np.int64(result.xyxy[0][3].item())
             boundingBox.Class = results[0].names[result.cls.item()]
             boundingBox.probability = result.conf.item()
-
+            
             # Draw bounding box on the frame
             cv2.rectangle(frame, (boundingBox.xmin, boundingBox.ymin), (boundingBox.xmax, boundingBox.ymax), (0, 255, 0), 2)
             cv2.putText(frame, f'{boundingBox.Class}: {boundingBox.probability:.2f}', (boundingBox.xmin, boundingBox.ymin-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
