@@ -27,7 +27,7 @@ class Yolo_Dect:
         self.device = 'cpu' if rospy.get_param('/use_cpu', False) else 'cuda'
 
         # Load models
-        self.model1 = YOLO(os.path.join(weight_path, 'yolov8s.pt'))
+        self.model1 = YOLO(os.path.join(weight_path, 'best.pt'))
         self.model2 = YOLO(os.path.join(weight_path, 'yolov8m.pt'))
         self.model1.fuse()
         self.model2.fuse()
@@ -86,7 +86,7 @@ class Yolo_Dect:
         header.frame_id = self.camera_frame
         image_temp.height = height
         image_temp.width = width
-        image_temp.encoding = 'rgb8'
+        image_temp.encoding = 'bgr8'
         image_temp.data = np.array(imgdata).tobytes()
         image_temp.header = header
         image_temp.step = width * 3
