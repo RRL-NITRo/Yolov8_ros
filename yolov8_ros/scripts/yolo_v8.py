@@ -28,7 +28,7 @@ class Yolo_Dect:
         self.device = 'cpu' if rospy.get_param('/use_cpu', False) else 'cuda'
 
         # Load models
-        self.model1 = YOLO(os.path.join(weight_path, 'new_object_detect.pt'))
+        self.model1 = YOLO(os.path.join(weight_path, 'best.pt'))
         self.model2 = YOLO(os.path.join(weight_path, 'yolov8m.pt'))
         self.model1.fuse()
         self.model2.fuse()
@@ -49,11 +49,23 @@ class Yolo_Dect:
         self.image_pub = rospy.Publisher('/yolov8/detection_image', Image, queue_size=1)
 
     def image_callback(self, image):
+        # Initialize boundingBoxes and getImageStatus
+        self.boundingBoxes = BoundingBoxes()
+        self.boundingBoxes.header = image.header
+        self.boundingBoxes.image_header = image.header
+        self.getImageStatus = True
+
         self.color_image = np.frombuffer(image.data, dtype=np.uint8).reshape(image.height, image.width, -1)
         self.color_image = cv2.cvtColor(self.color_image, cv2.COLOR_BGR2RGB)
         self.process_image()
 
     def compressed_image_callback(self, image):
+        # Initialize boundingBoxes and getImageStatus
+        self.boundingBoxes = BoundingBoxes()
+        self.boundingBoxes.header = image.header
+        self.boundingBoxes.image_header = image.header
+        self.getImageStatus = True
+
         np_arr = np.fromstring(image.data, np.uint8)
         self.color_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
         self.color_image = cv2.cvtColor(self.color_image, cv2.COLOR_BGR2RGB)
@@ -71,6 +83,7 @@ class Yolo_Dect:
         combined_frame = self.handle_results(results1, combined_frame)
         combined_frame = self.handle_results(results2, combined_frame)
 
+        self.position_pub.publish(self.boundingBoxes)
         self.publish_image(combined_frame, self.color_image.shape[0], self.color_image.shape[1])
 
         if self.visualize:
@@ -86,7 +99,9 @@ class Yolo_Dect:
             boundingBox.ymax = np.int64(result.xyxy[0][3].item())
             boundingBox.Class = results[0].names[result.cls.item()]
             boundingBox.probability = result.conf.item()
-            
+            if boundingBox.ymax - boundingBox.ymin < 50:  # Exclude too small bounding boxes
+                continue
+            self.boundingBoxes.bounding_boxes.append(boundingBox)
             # Draw bounding box on the frame
             cv2.rectangle(frame, (boundingBox.xmin, boundingBox.ymin), (boundingBox.xmax, boundingBox.ymax), (0, 255, 0), 2)
             cv2.putText(frame, f'{boundingBox.Class}: {boundingBox.probability:.2f}', (boundingBox.xmin, boundingBox.ymin-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
@@ -98,7 +113,7 @@ class Yolo_Dect:
         header.frame_id = self.camera_frame
         image_temp.height = height
         image_temp.width = width
-        image_temp.encoding = 'rgb8'
+        image_temp.encoding = 'bgr8'
         image_temp.data = np.array(imgdata).tobytes()
         image_temp.header = header
         image_temp.step = width * 3
