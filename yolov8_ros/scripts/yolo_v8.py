@@ -10,7 +10,7 @@ from ultralytics import YOLO
 from time import time
 
 from std_msgs.msg import Header
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CompressedImage
 from yolov8_ros_msgs.msg import BoundingBox, BoundingBoxes
 
 class Yolo_Dect:
@@ -20,6 +20,7 @@ class Yolo_Dect:
         image_topic = rospy.get_param('~image_topic', '/camera/color/image_raw')
         pub_topic = rospy.get_param('~pub_topic', '/yolov8/BoundingBoxes')
         self.camera_frame = rospy.get_param('~camera_frame', '')
+        self.use_compressed = rospy.get_param('~use_compressed', False)
         conf = rospy.get_param('~conf', 0.5)
         self.visualize = rospy.get_param('~visualize', True)
 
@@ -38,25 +39,39 @@ class Yolo_Dect:
         self.model2.conf = conf
 
         # Image subscription
-        self.color_sub = rospy.Subscriber(image_topic, Image, self.image_callback, queue_size=1, buff_size=52428800)
+        if self.use_compressed:
+            self.color_sub = rospy.Subscriber(image_topic, CompressedImage, self.compressed_image_callback, queue_size=1, buff_size=52428800)
+        else:
+            self.color_sub = rospy.Subscriber(image_topic, Image, self.image_callback, queue_size=1, buff_size=52428800)
 
         # Output publishers
         self.position_pub = rospy.Publisher(pub_topic, BoundingBoxes, queue_size=1)
         self.image_pub = rospy.Publisher('/yolov8/detection_image', Image, queue_size=1)
 
     def image_callback(self, image):
-
-        #追加
+        # Initialize boundingBoxes and getImageStatus
         self.boundingBoxes = BoundingBoxes()
         self.boundingBoxes.header = image.header
         self.boundingBoxes.image_header = image.header
         self.getImageStatus = True
-        #追加
-
 
         self.color_image = np.frombuffer(image.data, dtype=np.uint8).reshape(image.height, image.width, -1)
         self.color_image = cv2.cvtColor(self.color_image, cv2.COLOR_BGR2RGB)
-        
+        self.process_image()
+
+    def compressed_image_callback(self, image):
+        # Initialize boundingBoxes and getImageStatus
+        self.boundingBoxes = BoundingBoxes()
+        self.boundingBoxes.header = image.header
+        self.boundingBoxes.image_header = image.header
+        self.getImageStatus = True
+
+        np_arr = np.fromstring(image.data, np.uint8)
+        self.color_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        self.color_image = cv2.cvtColor(self.color_image, cv2.COLOR_BGR2RGB)
+        self.process_image()
+
+    def process_image(self):
         # Process image with both models
         results1 = self.model1(self.color_image, show=False, conf=0.3)
         results2 = self.model2(self.color_image, show=False, conf=0.3)
@@ -69,7 +84,7 @@ class Yolo_Dect:
         combined_frame = self.handle_results(results2, combined_frame)
 
         self.position_pub.publish(self.boundingBoxes)
-        self.publish_image(combined_frame, image.height, image.width)
+        self.publish_image(combined_frame, self.color_image.shape[0], self.color_image.shape[1])
 
         if self.visualize:
             cv2.imshow('YOLOv8 Combined Detection', combined_frame)
@@ -84,7 +99,7 @@ class Yolo_Dect:
             boundingBox.ymax = np.int64(result.xyxy[0][3].item())
             boundingBox.Class = results[0].names[result.cls.item()]
             boundingBox.probability = result.conf.item()
-            if boundingBox.ymax - boundingBox.ymin < 50:#manometerの中の数値をhazmatとして読んでしまうので、小さすぎるやつは入れないようにした。
+            if boundingBox.ymax - boundingBox.ymin < 50:  # Exclude too small bounding boxes
                 continue
             self.boundingBoxes.bounding_boxes.append(boundingBox)
             # Draw bounding box on the frame
