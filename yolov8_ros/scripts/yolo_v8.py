@@ -25,7 +25,7 @@ class Yolo_Dect:
         self.visualize = rospy.get_param('~visualize', True)
 
         # Device configuration
-        self.device = 'cpu' if rospy.get_param('/use_cpu', False) else 'cuda'
+        self.device = 'cpu' if rospy.get_param('use_cpu', False) else 'cuda'
 
         # Load models
         self.model1 = YOLO(os.path.join(weight_path, 'best.pt'))
