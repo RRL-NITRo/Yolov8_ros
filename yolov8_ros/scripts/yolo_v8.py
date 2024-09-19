@@ -28,7 +28,7 @@ class Yolo_Dect:
         self.device = 'cpu' if rospy.get_param('/use_cpu', False) else 'cuda'
 
         # Load models
-        self.model1 = YOLO(os.path.join(weight_path, 'best.pt'))
+        self.model1 = YOLO(os.path.join(weight_path, 'traing3_best.pt'))
         self.model2 = YOLO(os.path.join(weight_path, 'yolov8m.pt'))
         self.model1.fuse()
         self.model2.fuse()
